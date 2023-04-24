@@ -1,0 +1,92 @@
+---
+- name: Install Python, Docker, Docker Compose, and Make on Ubuntu 22.04, RHEL 9.1, and AlmaLinux 9.1
+  hosts: all
+  become: yes
+
+  vars:
+    ubuntu_packages:
+      - python3.11
+      - python3.11-venv
+      - docker.io
+      - docker-compose
+      - make
+    rhel_packages:
+      - python3.11
+      - python3.11-venv
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - make
+    almalinux_packages:
+      - python3.11
+      - python3.11-venv
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - make
+
+  tasks:
+    - name: Install packages on Ubuntu
+      when: "'ubuntu' in ansible_distribution.lower()"
+      apt:
+        name: "{{ ubuntu_packages }}"
+        state: present
+      register: apt_result
+
+    - name: Install packages on RHEL
+      when: "'redhat' in ansible_distribution.lower() or 'centos' in ansible_distribution.lower()"
+      yum:
+        name: "{{ rhel_packages }}"
+        state: present
+      register: yum_result
+
+    - name: Install packages on AlmaLinux
+      when: "'almalinux' in ansible_distribution.lower()"
+      dnf:
+        name: "{{ almalinux_packages }}"
+        state: present
+      register: dnf_result
+
+    - name: Create virtual environment
+      command: python3.11 -m venv /opt/myapp/env
+
+    - name: Activate virtual environment
+      shell: source /opt/myapp/env/bin/activate
+
+    - name: Set up Docker repository
+      when: "'ubuntu' in ansible_distribution.lower() or 'debian' in ansible_distribution.lower()"
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      register: apt_repository_result
+      become: true
+
+    - name: Set up Docker repository
+      when: "'redhat' in ansible_distribution.lower() or 'centos' in ansible_distribution.lower()"
+      yum_repository:
+        baseurl: https://download.docker.com/linux/centos/docker-ce.repo
+        name: Docker CE Stable - $basearch
+        description: Docker CE Stable - $basearch
+        gpgcheck: true
+        enabled: true
+        gpgkey: https://download.docker.com/linux/centos/gpg
+      register: yum_repository_result
+      become: true
+
+    - name: Set up Docker repository
+      when: "'almalinux' in ansible_distribution.lower()"
+      dnf_repository:
+        name: Docker CE Stable - $basearch
+        description: Docker CE Stable - $basearch
+        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable
+        gpgcheck: true
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: true
+      register: dnf_repository_result
+      become: true
+
+    - name: Install Docker
+      package:
+        name: docker-ce
+        state: present
+      when: "'ubuntu' in ansible_distribution.lower() or 'redhat' in ansible_distribution.lower() or 'centos'
